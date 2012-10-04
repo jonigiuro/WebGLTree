@@ -1,0 +1,310 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Joni.G | apple palms</title>
+<script src="js/jquery-1.6.js"></script>
+<script src="js/Three.js"></script>
+<script src="js/RequestAnimationFrame.js"></script>
+<script src='js/DAT.GUI.min.js'></script>
+<script src="js/Controls.js"></script>
+<link rel="stylesheet" href="styles/global.css" type="text/css" media="screen">
+</head>
+<body marginwidth="0" marginheight="0" leftmargin="0" topmargin="0">
+	<div id="main">
+		
+		<div id="reset" class="rounded"><strong>RESET</strong></div>
+		<div id="tree" class="rounded"><strong>CREATE LEAVES / TREE</strong></div>
+		<div id="fruits" class="rounded"><strong>ADD APPLES</strong></div>
+		
+	</div><!-- Close Main div -->
+<!-- !!!!!!!!!!!!!!!!!!!!!!!! I left the javascript in this page so you can check both (HTML and Javascript) codes at once !!!!!!!!!!!!!!!!!!!!!-->
+<script type="text/javascript">
+
+var RENDER_SHADOWS = true;
+var SHADOW_MAP_WIDTH = 1024, SHADOW_MAP_HEIGHT = 512;
+var NEAR = 5, FAR = 40000;
+var maxcubes = 1000;
+var allCubes = new Array();
+var allRoots = new Array();
+var allApples = new Array();
+var shrink = 40;
+var radius = 500;
+var newX = newZ = 0;
+var CURRENT_X = CURRENT_Y = 0;
+var oldcount = 0;
+var bendiness = 0;
+var gravity = -1;
+var dist = angle = 0;
+var newTree = true;
+var addedMaterial = new THREE.MeshLambertMaterial( { wireframe: false, opacity: 1, color: '0x00ff00' } );
+var rootMaterial = new THREE.MeshLambertMaterial( { wireframe: false, opacity: 1, color: '0x992222' } );
+var groundMaterial = new THREE.MeshLambertMaterial( { wireframe: false, opacity: 1, color: '0xFFFFFF' } );
+var camera, scene, renderer, sphere,
+material, ambient, light;
+//I'm using DAT.GUI!!
+		var params = {
+			maxcubes: 1000,
+			shrink: 40,
+			bendiness: 0.03,
+			newTree: true,
+			dist: 0,
+			angle: 0,
+			gravity: -1
+		};
+//Initialize scene, cameras, etc
+init();
+//start the animation loop
+animate();
+function init() {
+
+    camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 10000 );
+    camera.position.z = 400;
+			camera.position.y = 0;
+			camera.position.x = 0;
+			camera.rotation.x=0;
+			camera.rotation.y=0;
+			camera.rotation.z=0;
+    scene = new THREE.Scene();
+			ambient = new THREE.AmbientLight( 0x444444 );
+			scene.add( ambient );
+			light = new THREE.SpotLight( 0xffffff );
+							light.position.set( 0, 350, 100 );
+							light.target.position.set( 0, 0, 0 );
+							light.castShadow = true;
+							scene.add( light );
+    renderer = new THREE.WebGLRenderer({ clearColor: 0x555555, clearAlpha: 0, antialias: true });
+
+    renderer.setSize( window.innerWidth, window.innerHeight );
+			renderer.shadowCameraNear = .3;
+							renderer.shadowCameraFar = camera.far;
+							renderer.shadowCameraFov = 50;
+							renderer.shadowMapBias = 0.0039;
+							renderer.shadowMapDarkness = 0.5;
+							renderer.shadowMapWidth = SHADOW_MAP_WIDTH;
+							renderer.shadowMapHeight = SHADOW_MAP_HEIGHT;
+							renderer.shadowMapEnabled = true;
+							renderer.shadowMapSoft = true;
+    document.body.appendChild( renderer.domElement );
+			drawObjects(); // Draw the base cylinders, nothing fancy here
+			draw(0,0); // Create the first set of leaves using as starting X and Z coordinates 0 and 0 (basically it's the center)
+			
+}
+
+
+// Show and hide expandable boxes
+		
+	document.onmousewheel = wheel; //Mousewheel, I only tested it on an iMac with a Logitech mouse, don't know if it'll work for you
+	
+function wheel(event){
+	radius += -1 * event.wheelDelta/4;
+	camera.position.x = radius * Math.sin( CURRENT_X * Math.PI / 360 );
+	camera.position.y = radius * Math.sin( CURRENT_Y * Math.PI / window.innerHeight / 2 ) - 100;
+	camera.position.z = radius * Math.cos( CURRENT_X * Math.PI / 360 );
+}
+
+$('#source_btn').click(function(e){
+	window.location = "view-source:" + window.location.href; //Just show the source of the page
+})
+
+function drawObjects(){
+		//Add the two cylinders on the floor
+		var groundCylinder = new THREE.CylinderGeometry(170,170,5,40);
+		var groundmesh = new THREE.Mesh(groundCylinder, groundMaterial);
+		groundmesh.position.y=-203;
+		groundmesh.receiveShadow = true;
+		scene.add(groundmesh);
+		var groundCyl2 = new THREE.Mesh(groundCylinder, groundMaterial);
+		groundCyl2.position.y = -210;
+		groundCyl2.scale.x=1.05;
+		groundCyl2.scale.z=1.05;
+		scene.add(groundCyl2);
+}
+//Function to create the base of the tree (I don't even know what it is called in english)
+function drawRoot(startX,startZ){
+	if(params.newTree || allCubes.length == 2){ //Checks if newTree is checked or there is a tree in the scene
+		var rootcube = new THREE.CylinderGeometry( 5, 5, 5 );
+		for (var i=0;i<20;i++){ //It's composed by 20 cylinders, counting from top to bottom
+			var rootmesh = new THREE.Mesh( rootcube, rootMaterial );
+			rootMaterial.castShadow
+			rootmesh.castShadow = RENDER_SHADOWS;
+			rootmesh.receiveShadow = true;
+
+			rootmesh.position.y = 10*i * (-1) - 10;
+			rootmesh.position.x = startX;
+			rootmesh.position.z = startZ;
+		
+			rootmesh.scale.x=i*0.1+0.5;
+			rootmesh.scale.y=5*.2+0.5;
+			rootmesh.scale.z=i*0.1+0.5;
+			allRoots.push(rootmesh);
+			scene.add( rootmesh ); //I don't add id to the allCubes array, because I don't want it to disappear when you hide the leaves
+		}
+	}
+}
+
+$("#reset").click(function(){
+	newX = newZ = 0; //Create tree in the center. These values get overwritten if dist and angle values are 0
+	//Change this variable, the actual removing is done in "destroyCubes()"
+	oldcount = allCubes.length;
+	//Add a new starting cube
+	var material = new THREE.MeshBasicMaterial( { wireframe: true, opacity: 1 } );
+	var geometry = new THREE.CubeGeometry( 7, 7, 7 );
+	var mesh = new THREE.Mesh( geometry, material );
+	mesh.castShadow = RENDER_SHADOWS;
+	mesh.receiveShadow = true;
+	mesh.position.y = 0;
+	mesh.position.x = 0;
+	mesh.position.z = 0;
+	//material.castshadow
+	allCubes.push(mesh);
+	
+	for(var a = 0 ; a < allApples.length; a++){ //removing apples loop
+		scene.remove(allApples[a]);
+	}
+	for(var r = 0 ; r < allRoots.length; r++){ // removing roots loop
+		scene.remove(allRoots[r]);
+	}
+	for(var c = 0 ; c < allCubes.length; c++){ // removing leaves loop
+		scene.remove(allCubes[c]);
+		
+	}
+	allApples.length = 0; //empty arrays except for the leaves (need one in memory for creating the root)
+	allRoots.length = 0;
+	allCubes.length = 1;
+	return false;
+})
+//This function creates the apples
+$("#fruits").click(function(){	
+
+	var material = new THREE.MeshLambertMaterial( { wireframe: false, opacity: 1, color: '0xff0000' } );
+	var geometry = new THREE.SphereGeometry( 3, 3, 5 );
+	var fruitsRatio = Math.round(allCubes.length / 30);
+	//It loops from 0 to totalcubes / 30
+	for(var i=0; i < fruitsRatio; i++){
+		var wichCube = allCubes[Math.round(Math.random() * allCubes.length)]; //Chooses a random cube to attach a fruit
+		var apple = new THREE.Mesh( geometry, material );
+		apple.castShadow = RENDER_SHADOWS;
+		apple.receiveShadow = false;
+		apple.position.y = wichCube.position.y - 3; //position the apple under the selected cube
+		apple.position.x = wichCube.position.x;
+		apple.position.z = wichCube.position.z;
+		var appleScale = Math.random(); //randomize the size
+		apple.scale.x = appleScale;
+		apple.scale.y = appleScale;
+		apple.scale.z = appleScale;
+		allApples.push(apple);
+		scene.add(apple);
+	}
+})
+
+//Adding the cubes(leaves)
+$('#tree').click(function(e){
+
+	if(params.newTree==true){
+		if(params.dist == 0 && params.angle == 0){ //randomize position if user doesn't specify one and if newTree is checked
+			newX=Math.random()*200-100;
+			newZ=Math.random()*200-100;
+		}else{
+			//console.log(params.dist, params.angle)
+			newX=params.dist * Math.sin(params.angle * (Math.PI/180)); //calculate new trees position, according to the user input (angle, distance)
+			newZ=params.dist * Math.cos(params.angle * (Math.PI/180));
+			//console.log(newX,newZ, params.dist, params.angle)
+		}
+		
+	}
+	draw(newX,newZ) //actually create the cube
+})
+// camera movements
+$(document).mousemove(function(e){
+		CURRENT_X = e.clientX; // I set these to variables for the mouse wheel
+		CURRENT_Y = e.clientY;
+		//Move the camera
+		camera.position.x = radius * Math.sin( ( e.clientX ) * Math.PI / 360 );
+		camera.position.y = radius * Math.sin( ( e.clientY ) * Math.PI / window.innerHeight / 2 ) - 100;
+		camera.position.z = radius * Math.cos( ( e.clientX ) * Math.PI / 360 );
+	
+})
+
+//draw the tree
+function draw(startX,startY){
+
+	//Add the starting cube in the center
+	var material = new THREE.MeshBasicMaterial( { wireframe: true, opacity: 1 } );
+	var geometry = new THREE.CubeGeometry( 7, 7, 7 );
+	var mesh = new THREE.Mesh( geometry, material );
+	mesh.castShadow = false;
+	mesh.receiveShadow = true;
+	mesh.position.y = 0;
+	mesh.position.x = startX;
+	mesh.position.z = startY;
+	allCubes.push(mesh)
+	scene.add( mesh );
+	drawRoot(startX,startY); //start by creating the base
+	var addedGeom = new THREE.CubeGeometry( params.shrink / 10, 3, 3, 1, 1, 1 ); //create the geometry
+	for(var i=0; i < params.maxcubes; i++){ //loop as long as the max number of cubes is reached
+		var allCubesLength = allCubes.length //create variable (increased speed)
+		var lastCube = allCubes[allCubesLength - 1];
+
+		var addedMesh = new THREE.Mesh( addedGeom, addedMaterial ); //create a mesh
+		
+		addedMesh.castShadow = RENDER_SHADOWS;
+		addedMesh.receiveShadow = false;
+		//New cubes position --
+		addedMesh.position.y = lastCube.position.y + 3 *lastCube.scale.x * (Math.cos(lastCube.rotation.z)) + params.gravity;
+		addedMesh.position.x = lastCube.position.x + 3 *lastCube.scale.x * (Math.sin(lastCube.rotation.z)) * -1;
+		addedMesh.position.z = lastCube.position.z + 3 *lastCube.scale.x * (Math.cos(lastCube.rotation.y)) * -1;
+		//Rotation
+		addedMesh.rotation.x = lastCube.rotation.x + 0.01;
+		addedMesh.rotation.y = lastCube.rotation.y + 0.01;
+		addedMesh.rotation.z = lastCube.rotation.z + (params.bendiness) ;
+		addedMesh.scale.x = lastCube.scale.x - 1 / params.shrink;
+		addedMesh.scale.y = addedMesh.scale.z = lastCube.scale.x - 0.003;
+		
+		//Start a new branch when the size of this is too little
+		if(addedMesh.scale.x < .1){
+			resetCube(addedMesh,startX,startY) //set the new cube on the center
+		}
+		addedMesh.castShadow = RENDER_SHADOWS;
+		addedMesh.recieveShadow = false;
+		allCubes.push(addedMesh)
+		scene.add( addedMesh );
+	}
+
+}		
+
+//Move the cube to the center
+function resetCube(addedMesh,startX,startY){
+	addedMesh.position.y = 0;
+	addedMesh.position.x = startX;
+	addedMesh.position.z = startY;
+	addedMesh.scale.x=1;
+	addedMesh.scale.y=1;
+	addedMesh.scale.z=1;
+	addedMesh.rotation.x = Math.random() * 180; //Randomize the angle, to create a more chaotic branch
+	addedMesh.rotation.y = Math.random() * 180;
+	addedMesh.rotation.z = Math.random() * 180;
+}
+
+//animation loop
+function animate() {
+	if(allCubes.length > params.maxcubes){
+		scene.remove(allCubes[allCubes.length - params.maxcubes])
+	}
+	
+	camera.lookAt(new THREE.Vector3(0,-100,0));
+
+	
+  requestAnimationFrame( animate );
+  render();
+}
+
+function render() {
+   renderer.render( scene, camera );
+}
+
+</script>
+
+
+</body>
+</html>
